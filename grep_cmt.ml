@@ -1,9 +1,6 @@
-(***************************************************************************)
-(*  Copyright (C) 2000-2024 LexiFi SAS. All rights reserved.               *)
-(*                                                                         *)
-(*  No part of this document may be reproduced or transmitted in any       *)
-(*  form or for any purpose without the express permission of LexiFi SAS.  *)
-(***************************************************************************)
+(* This file is part of the grep-cmt package, released under the terms of an MIT-like license.     *)
+(* See the attached LICENSE file.                                                                  *)
+(* Copyright (C) 2000-2024 LexiFi                                                                  *)
 
 (*
   Notes about structural search:
