@@ -15,30 +15,30 @@ module L = struct
     | [e1; e2] -> let e1 = f e1 and e2 = f e2 in fun x -> Stdlib.compare x e1 = 0 || Stdlib.compare x e2 = 0
     | [e1; e2; e3] -> let e1 = f e1 and e2 = f e2 and e3 = f e3 in fun x -> Stdlib.compare x e1 = 0 || Stdlib.compare x e2 = 0 || Stdlib.compare x e3 = 0
     | l ->
-      let s = List.fold_left (fun acc e -> ObjSet.add (Obj.repr (f e)) acc) ObjSet.empty l in
-      fun e -> ObjSet.mem (Obj.repr e) s
+        let s = List.fold_left (fun acc e -> ObjSet.add (Obj.repr (f e)) acc) ObjSet.empty l in
+        fun e -> ObjSet.mem (Obj.repr e) s
 
   let mem_list l = mem_list_map Fun.id l
 
   let to_string sep f = function
     | [] -> ""
     | hd :: tl ->
-      let seplen = String.length sep in
-      let rec aux len = function
-        | [] -> Bytes.create len
-        | hd :: tl ->
-          let s = f hd in
-          let slen = String.length s in
-          let buf = aux (len + seplen + slen) tl in
-          Bytes.blit_string sep 0 buf len seplen;
-          Bytes.blit_string s 0 buf (len + seplen) slen;
-          buf
-      in
-      let s = f hd in
-      let slen = String.length s in
-      let buf = aux slen tl in
-      Bytes.blit_string s 0 buf 0 slen;
-      Bytes.unsafe_to_string buf
+        let seplen = String.length sep in
+        let rec aux len = function
+          | [] -> Bytes.create len
+          | hd :: tl ->
+              let s = f hd in
+              let slen = String.length s in
+              let buf = aux (len + seplen + slen) tl in
+              Bytes.blit_string sep 0 buf len seplen;
+              Bytes.blit_string s 0 buf (len + seplen) slen;
+              buf
+        in
+        let s = f hd in
+        let slen = String.length s in
+        let buf = aux slen tl in
+        Bytes.blit_string s 0 buf 0 slen;
+        Bytes.unsafe_to_string buf
 end
 
 module S = struct
@@ -101,11 +101,11 @@ module S = struct
     | 0 -> fun _ -> true
     | 1 -> fun s -> String.contains s pattern.[0]
     | _ ->
-      let find = find_substring ~pat:pattern in
-      fun s ->
-        match find s with
-        | None -> false
-        | Some _ -> true
+        let find = find_substring ~pat:pattern in
+        fun s ->
+          match find s with
+          | None -> false
+          | Some _ -> true
 
   let drop_prefix ~prefix s =
     if String.starts_with ~prefix s
@@ -118,19 +118,19 @@ module S = struct
     match find s 0 with
     | None -> s
     | Some j ->
-      let buf = Buffer.create (String.length s) in
-      Buffer.add_substring buf s 0 j;
-      Buffer.add_string buf s_new;
-      let rec loop i =
-        match find s i with
-        | None -> Buffer.add_substring buf s i (String.length s - i)
-        | Some j ->
-          Buffer.add_substring buf s i (j - i);
-          Buffer.add_string buf s_new;
-          loop (j + String.length pat)
-      in
-      loop (j + String.length pat);
-      Buffer.contents buf
+        let buf = Buffer.create (String.length s) in
+        Buffer.add_substring buf s 0 j;
+        Buffer.add_string buf s_new;
+        let rec loop i =
+          match find s i with
+          | None -> Buffer.add_substring buf s i (String.length s - i)
+          | Some j ->
+              Buffer.add_substring buf s i (j - i);
+              Buffer.add_string buf s_new;
+              loop (j + String.length pat)
+        in
+        loop (j + String.length pat);
+        Buffer.contents buf
 
   let is_printable = String.for_all (fun c -> '\032' <= c || c = '\t' || c = '\r' || c = '\n')
 end
@@ -175,9 +175,9 @@ module F = struct
     match aux [] with
     | [] -> []
     | first :: rest as l ->
-      match S.drop_prefix ~prefix:Utf8.bom first with
-      | Some first -> first :: rest
-      | None -> l
+        match S.drop_prefix ~prefix:Utf8.bom first with
+        | Some first -> first :: rest
+        | None -> l
 
   let read_lines ?maybe_of_windows_1252 filename =
     let ic = open_in filename in
