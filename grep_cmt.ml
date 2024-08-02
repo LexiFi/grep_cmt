@@ -245,7 +245,7 @@ let grep_file =
     None
   else
     let ret =
-      let file = Lexifi.F.concat git_root "grep_svn.grep" in
+      let file = Lexifi.F.concat git_root "grep_cmt.grep" in
       if !create_grep_file then
         open_out file
       else
