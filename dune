@@ -1,0 +1,10 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;  Copyright (C) 2000-2024 LexiFi SAS. All rights reserved.               ;
+;                                                                         ;
+;  No part of this document may be reproduced or transmitted in any       ;
+;  form or for any purpose without the express permission of LexiFi SAS.  ;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(executable
+ (public_name grep_cmt)
+ (libraries compiler-libs.common unix))
