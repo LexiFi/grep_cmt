@@ -74,18 +74,6 @@ let add_filter s =
 let add_filter_ext s () =
   add_filter ("." ^ s ^ "$")
 
-
-(*
-let cmt_expr =
-  ref false
-
-let cmt_expr_context =
-  ref false
-
-let grepped_expr =
-  ref None
-*)
-
 let no_grep_file =
   try
     ignore (Sys.getenv "NOGREPFILE");
@@ -141,11 +129,7 @@ let run_command cmd =
       exit 2
 
 let git_root =
-  let path = run_command "git rev-parse --show-toplevel" in
-  if Sys.win32 then
-    run_command (Printf.sprintf "cygpath -w %s" path)
-  else
-    path
+  run_command "git rev-parse --show-toplevel"
 
 let grep_file =
   if !emacs_mode || no_grep_file then
