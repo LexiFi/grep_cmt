@@ -15,8 +15,8 @@
 
 (package
  (name grep_cmt)
- (synopsis "A short synopsis")
- (description "A longer description")
+ (synopsis "Advanced structural search tool for OCaml projects")
+ (description "The grep_cmt tool provides advanced structural search capabilities for OCaml projects by analyzing compiled module type files (.cmt).")
  (depends ocaml dune)
  (tags
-  (topics "to describe" your project)))
+  (topics "OCaml" "developer tools" "code search" "static analysis")))
