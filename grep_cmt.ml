@@ -54,7 +54,6 @@ let name_filter = ref None
 let search = ref []
 let case_sensitive = ref true
 let create_grep_file = ref true
-let union = ref false
 let from_start = ref false
 let verbose = ref false
 
@@ -86,7 +85,6 @@ let () =
       usage_msg
   in
   parse ();
-  union := true;
   begin match !search, !name_filter with
   | [], None -> usage parsers usage_msg; exit 0
   | _ -> ()
@@ -668,14 +666,11 @@ let grep_cmt () =
   walk (Filename.concat git_root (Filename.concat "_build/default" git_prefix))
 
 let () =
-  if !union then
-    let search_list = List.rev !search in
-    List.iteri
-      (fun i s ->
-         if i <> 0 then create_grep_file := false;
-         search := [s]; grep_cmt ()
-      )
-      search_list;
-  else
-    grep_cmt ();
+  let search_list = List.rev !search in
+  List.iteri
+    (fun i s ->
+       if i <> 0 then create_grep_file := false;
+       search := [s]; grep_cmt ()
+    )
+    search_list;
   Option.iter close_out grep_file
