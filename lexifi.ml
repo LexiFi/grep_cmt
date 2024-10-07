@@ -3,7 +3,10 @@
 (* Copyright (C) 2000-2024 LexiFi                                                                  *)
 
 
-module L = struct
+module L: sig
+  val to_string: string -> ('a -> string) -> 'a list -> string
+  (** [to_string sep f l] is equivalent to [String.concat sep (List.map f l)] *)
+end = struct
   module ObjSet = Set.Make(struct type t = Obj.t let compare = Stdlib.compare end)
 
   let to_string sep f = function
