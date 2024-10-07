@@ -50,7 +50,6 @@ open Longident
 (*** Command-line parsing ***)
 
 let extra_includes = ref []
-let filter = ref None
 let name_filter = ref None
 let search = ref []
 let case_sensitive = ref true
@@ -62,17 +61,6 @@ let from_start = ref false
 let emacs_mode = ref false
 let ctx = ref 0
 let verbose = ref false
-
-let add_filter s =
-  let l =
-    match !filter with
-    | None -> [s]
-    | Some l -> s :: l
-  in
-  filter := Some l
-
-let add_filter_ext s () =
-  add_filter ("." ^ s ^ "$")
 
 let no_grep_file =
   try
@@ -90,7 +78,6 @@ let () =
       [
         "-verbose", Set verbose, " verbose mode";
         "-C", Int ((:=) ctx), " context lines; mimic the C option of grep";
-        "-c", Unit (add_filter_ext "c"), " identical to -ext c";
         "-root", Set from_start, " search from root directory";
         "-emacs", Set emacs_mode, " output is emacs friendly";
         "-i", Clear case_sensitive, " case insensitive search";
@@ -350,7 +337,6 @@ let rec match_expr texpr pexpr =
 
   | Texp_apply (tapply_expr, targs), Pexp_apply (pexpr, pargs) ->
       match_expr tapply_expr pexpr;
-      (* TODO: revise logic since introduction of Asttypes.arg_label *)
       let rec check_all targs = function
         | [] -> () (* ok if more arguments in the typed expression *)
         | (Asttypes.Optional _ as lab, {pexp_desc=Pexp_construct({txt=Lident ("MISSING"|"PRESENT" as cstr); _}, None); _}) :: pargs ->
@@ -439,7 +425,6 @@ let rec match_expr texpr pexpr =
       match_expr te1 pexpr
 
   | _, Pexp_constraint (pe, pt) ->
-      (* todo: Texp_constraint *)
       match_expr texpr pe;
       if not (match_typ texpr.exp_type pt) then raise DontMatch
 
@@ -475,10 +460,6 @@ let rec match_expr texpr pexpr =
       match_expr texpr1 pexpr1;
       match_expr texpr2 pexpr2;
       match_expr texpr pexpr;
-
-      (* todo: for, instvar, setinstvar,
-         override, letmodule, object, pack
-      *)
 
   | _ ->
       raise DontMatch
@@ -682,7 +663,6 @@ let grep_svn () =
                         let lines =
                           List.map
                             (fun {Location.loc_start; loc_end; _} ->
-                               (* TODO: check that filename matches 'src' *)
                                let i = loc_start.pos_lnum in
                                let s = src_lines.(i - 1) in
                                let c1 = loc_start.pos_cnum - loc_start.pos_bol in
