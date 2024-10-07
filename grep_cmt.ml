@@ -53,8 +53,6 @@ let extra_includes = ref []
 let name_filter = ref None
 let search = ref []
 let case_sensitive = ref true
-let exclude = ref false
-let global_file_mode = ref false
 let create_grep_file = ref true
 let union = ref false
 let from_start = ref false
@@ -199,15 +197,12 @@ let handle_global_match ~lines file =
     else
       print_green_string file
   in
-  match List.sort_uniq Int.compare lines, !exclude with
-  | line :: l, false ->
+  match List.sort_uniq Int.compare lines with
+  | line :: l ->
       let lines = Lexifi.L.to_string " " string_of_int l in
       let line_color = print_yellow_int line in
       Printf.fprintf stdout "%s:%s:<FOUND>:%s\n%!" file_color line_color lines;
       fwrite "%s:%i:<FOUND>:%s\n" (expand_cwd file) line lines;
-  | [], true ->
-      Printf.fprintf stdout "%s:1:<NOT FOUND>\n%!" file_color;
-      fwrite "%s:1:<NOT FOUND>\n" (expand_cwd file);
   | _ ->
       ()
 
@@ -611,7 +606,7 @@ let grep_cmt () =
   in
   write "\n";
   let global_file_mode =
-    !global_file_mode || search = []
+    search = []
   in
   let handle_global_match ~lines file =
     if global_file_mode then handle_global_match ~lines file
