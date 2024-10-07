@@ -30,7 +30,23 @@ end = struct
         Bytes.unsafe_to_string buf
 end
 
-module S = struct
+module S: sig
+  val replace_char: string -> char -> char -> string
+  (** [replace_char s c_old c_new] returns a copy of [s] with each occurrence of character [c_old] replaced with [c_new]. *)
+
+  val cut_start: int -> string -> string
+  (** [cut_start n s] returns the string s without its first [n] characters *)
+
+  val cut_end: int -> string -> string
+  (** [cut_end n s] returns the string s without its last [n] characters *)
+
+
+  val drop_prefix: prefix:string -> string -> string option
+  (** [drop_prefix ~prefix s] returns [Some s'] if [s = prefix ^ s'] and [None] if [prefix] is not a prefix of [s]. *)
+
+  val is_printable: string -> bool
+  (** Returns true if all the ascii code of the characters in [s] are either tab, new line, carriage return or between 32 and 255. *)
+end = struct
   let replace_char s old_c new_c =
     let s = Bytes.of_string s in
     for i = 0 to Bytes.length s - 1 do
@@ -50,104 +66,27 @@ module S = struct
     else if l <= i then ""
     else String.sub s 0 (l - i)
 
-  let prepare_kmp_table p =
-    let m = String.length p in
-    let next = Array.make m 0 in
-    let rec f i j =
-      if i < m - 1 then
-        if p.[i] = p.[j]
-        then
-          begin next.(i + 1) <- j + 1; f (i + 1) (j + 1) end
-        else
-        if j = 0 then
-          begin next.(i + 1) <- 0; f (i + 1) j end
-        else
-          f i (next.(j))
-    in
-    f 1 0;
-    next
-
-  let find_substring_from ~pat =
-    let next = prepare_kmp_table pat in
-    fun s i ->
-      let m = String.length pat in
-      let n = String.length s in
-      let rec f i j =
-        if m <= j then Some (i - m) else
-        if n <= i then None else
-        if s.[i] = pat.[j] then f (i + 1) (j + 1) else
-        if j = 0 then f (i + 1) j else
-          f i next.(j)
-      in
-      f i 0
-
-  let find_substring ~pat =
-    let find = find_substring_from ~pat in
-    fun s -> find s 0
-
-  let contains_string ~pattern =
-    match String.length pattern with
-    | 0 -> fun _ -> true
-    | 1 -> fun s -> String.contains s pattern.[0]
-    | _ ->
-        let find = find_substring ~pat:pattern in
-        fun s ->
-          match find s with
-          | None -> false
-          | Some _ -> true
-
   let drop_prefix ~prefix s =
     if String.starts_with ~prefix s
     then Some (String.sub s (String.length prefix) (String.length s - String.length prefix))
     else None
 
-  let replace_string s pat s_new =
-    if pat = "" then invalid_arg "replace_string: the old pattern shouldn't be empty";
-    let find = find_substring_from ~pat in
-    match find s 0 with
-    | None -> s
-    | Some j ->
-        let buf = Buffer.create (String.length s) in
-        Buffer.add_substring buf s 0 j;
-        Buffer.add_string buf s_new;
-        let rec loop i =
-          match find s i with
-          | None -> Buffer.add_substring buf s i (String.length s - i)
-          | Some j ->
-              Buffer.add_substring buf s i (j - i);
-              Buffer.add_string buf s_new;
-              loop (j + String.length pat)
-        in
-        loop (j + String.length pat);
-        Buffer.contents buf
-
   let is_printable = String.for_all (fun c -> '\032' <= c || c = '\t' || c = '\r' || c = '\n')
 end
 
-module O = struct
-  let unit_bool = function
-    | Some () -> true
-    | None -> false
-end
+module F: sig
+  val concat: string -> string -> string
 
-module F = struct
+  val read_lines: string -> string list
+
+  val absolute_path: string -> string
+  (** Make a path name absolute and simplify . and .. components. *)
+end = struct
   let slash_win f = S.replace_char f '/' '\\'
 
   let concat d f =
     let f = d ^ Filename.dir_sep ^ f in
     if Sys.win32 then slash_win f else f
-
-
-  let extension s =
-    match String.rindex_opt s '.' with
-    | Some i -> Some (S.cut_start (i + 1) s |> String.lowercase_ascii)
-    | None -> None
-
-  (* Perform CRLF translation even under Linux *)
-  let input_line_text ic =
-    let s = input_line ic in
-    let n = String.length s in
-    if 0 < n && String.unsafe_get s (n - 1) = '\r' then String.sub s 0 (n - 1) else s
 
   let read_lines filename =
     let ic = open_in filename in
@@ -185,7 +124,12 @@ module F = struct
         aux s
 end
 
-module H = struct
+module H: sig
+  val memoize: ('a, 'b) Hashtbl.t -> ('a -> 'b) -> ('a -> 'b)
+  (** [memoize tbl f] returns a function that memoizes its calculation
+      by using provided hash table. However, raised exceptions are not
+      memoized. *)
+end = struct
   let memoize h f k =
     match Hashtbl.find_opt h k with
     | None -> let r = f k in Hashtbl.add h k r; r
