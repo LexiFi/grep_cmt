@@ -56,7 +56,6 @@ let case_sensitive = ref true
 let create_grep_file = ref true
 let union = ref false
 let from_start = ref false
-let emacs_mode = ref false
 let verbose = ref false
 
 let no_grep_file =
@@ -76,7 +75,6 @@ let () =
         "-verbose", Set verbose, " verbose mode";
         "-v", Set verbose, " same as -verbose";
         "-root", Set from_start, " search from root directory";
-        "-emacs", Set emacs_mode, " output is emacs friendly";
         "-i", Clear case_sensitive, " case insensitive search";
         "-I", String (fun s -> extra_includes := s :: !extra_includes), "<dir> extend load path";
       ]
@@ -88,7 +86,6 @@ let () =
       usage_msg
   in
   parse ();
-  emacs_mode := not (Unix.isatty Unix.stdout) || !emacs_mode;
   union := true;
   begin match !search, !name_filter with
   | [], None -> usage parsers usage_msg; exit 0
@@ -116,7 +113,7 @@ let git_root =
   run_command "git rev-parse --show-toplevel"
 
 let grep_file =
-  if !emacs_mode || no_grep_file then
+  if no_grep_file then
     None
   else
     let ret =
@@ -147,20 +144,16 @@ let () =
   fwrite "%s\n\n" args
 
 let print_red_string s =
-  if !emacs_mode then s
-  else Printf.sprintf "\027[1;31m%s\027[00m" s
+  Printf.sprintf "\027[1;31m%s\027[00m" s
 
 let print_green_string s =
-  if !emacs_mode then s
-  else Printf.sprintf "\027[1;32m%s\027[00m" s
+  Printf.sprintf "\027[1;32m%s\027[00m" s
 
 let print_yellow_string s =
-  if !emacs_mode then s
-  else Printf.sprintf "\027[1;33m%s\027[00m" s
+  Printf.sprintf "\027[1;33m%s\027[00m" s
 
 let print_yellow_int i =
-  if !emacs_mode then string_of_int i
-  else Printf.sprintf "\027[1;33m%i\027[00m" i
+  Printf.sprintf "\027[1;33m%i\027[00m" i
 
 let expand_cwd =
   match
@@ -188,15 +181,7 @@ let print_results_with_color_range i c1 c2 s file file_color =
     end
 
 let handle_global_match ~lines file =
-  let file_color =
-    if !emacs_mode then
-      if !from_start then
-        Lexifi.F.absolute_path file
-      else
-        file
-    else
-      print_green_string file
-  in
+  let file_color = print_green_string file in
   match List.sort_uniq Int.compare lines with
   | line :: l ->
       let lines = Lexifi.L.to_string " " string_of_int l in
@@ -636,13 +621,7 @@ let grep_cmt () =
                   end else begin
                     if !verbose then prerr_endline source;
                     let file_no_color, file_color =
-                      if !emacs_mode then
-                        if !from_start then
-                          Lexifi.F.absolute_path source, Lexifi.F.absolute_path source
-                        else
-                          source, source
-                      else
-                        source, print_green_string source
+                      source, print_green_string source
                     in
                     match search_cmt cmt with
                     | exception Cannot_parse_type exn ->
