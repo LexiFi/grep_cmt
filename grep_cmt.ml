@@ -263,8 +263,6 @@ let print_results_with_color_range i c1 c2 s file file_color =
       Printf.fprintf stdout "%s:%s:%s\n%!" file_color i_color s_color;
       fwrite "%s:%i:%s\n%!" file i s;
     end
-  else
-    Printf.fprintf stdout "%s:%s:<binary data>\n%!" file_color i_color
 
 let handle_global_match ~lines file =
   let file_color =
