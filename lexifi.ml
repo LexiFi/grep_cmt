@@ -157,30 +157,16 @@ module F = struct
     let n = String.length s in
     if 0 < n && String.unsafe_get s (n - 1) = '\r' then String.sub s 0 (n - 1) else s
 
-  let input_lines ?maybe_of_windows_1252 ic =
-    let input_line_text =
-      if O.unit_bool maybe_of_windows_1252 then
-        fun ic -> Utf8.maybe_of_windows_1252 (input_line_text ic)
-      else
-        input_line_text
-    in
-    let rec aux accu =
-      match input_line_text ic with
-      | exception End_of_file -> List.rev accu
-      | s -> aux (s :: accu)
-    in
-    match aux [] with
-    | [] -> []
-    | first :: rest as l ->
-        match S.drop_prefix ~prefix:Utf8.bom first with
-        | Some first -> first :: rest
-        | None -> l
-
-  let read_lines ?maybe_of_windows_1252 filename =
+  let read_lines filename =
     let ic = open_in filename in
-    match input_lines ?maybe_of_windows_1252 ic with
-    | lines -> close_in ic; lines
-    | exception e -> close_in_noerr ic; raise e
+    let line = ref (In_channel.input_line ic) in
+    let lines = ref [] in
+    while !line <> None do
+      lines := Option.get !line :: !lines;
+      line := In_channel.input_line ic
+    done;
+    close_in ic;
+    List.rev !lines
 
   let is_slash = function '/' | '\\' -> true | _ -> false
 
