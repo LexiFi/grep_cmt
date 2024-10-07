@@ -62,7 +62,6 @@ let exclude = ref false
 let global_file_mode = ref false
 let include_ocaml = ref false
 let create_grep_file = ref true
-let cmt = ref false
 let union = ref false
 let from_start = ref false
 let emacs_mode = ref false
@@ -127,7 +126,6 @@ let () =
         "-ml", Unit (add_filter_ext "ml"), " identical to -ext ml";
         "-mli", Unit (add_filter_ext "mli"), " identical to -ext mli";
         "-txt", Unit (add_filter_ext "txt"), " identical to -ext txt";
-        "-cmt", Set cmt, " search .cmt files";
 (*
        "-expr", Set cmt_expr, " structural search (__ for a wildcard; named wildcards are in the form __1, __2, etc.)";
        "-expr_context", Set cmt_expr_context, " display the whole matched expression when performing structural search";
@@ -164,7 +162,7 @@ let () =
   in
   parse ();
   emacs_mode := not (Unix.isatty Unix.stdout) || !emacs_mode;
-  if !cmt then union := true;
+  union := true;
   begin match !search, !name_filter with
   | [], None -> usage parsers usage_msg; exit 0
   | _ -> ()
@@ -173,49 +171,6 @@ let () =
 
 (*** Collect files ***)
 
-
-let binary_files =
-  [
-    "GID";
-    "GIF";
-    "a";
-    "bin";
-    "binary2";
-    "bmp";
-    "chm";
-    "dem";
-    "dll";
-    "doc";
-    "docx";
-    "exe";
-    "gif";
-    "gz";
-    "hlp";
-    "ico";
-    "ico";
-    "in";
-    "jpg";
-    "JPG";
-    "lib";
-    "licenses";
-    "mgc";
-    "mgc_old";
-    "ocamlc";
-    "ocamldep";
-    "ocamllex";
-    "out";
-    "pdf";
-    "pfx";
-    "png";
-    "pptx";
-    "ps";
-    "snk";
-    "testrunconfig";
-    "xls";
-    "xlsx";
-  ]
-
-let not_binary_files = Fun.negate (Lexifi.L.mem_list binary_files)
 
 let initial_cwd = Sys.getcwd ()
 
@@ -268,59 +223,6 @@ let () =
   in
   fwrite "%s\n\n" args
 
-let compute_file_list ~files =
-  let check_binary s =
-    !with_binary ||
-    match Lexifi.F.extension s with
-    | None -> not_binary_files s
-    | Some ext -> not_binary_files ext
-  in
-  let files =
-    List.filter
-      (function
-        | "" -> false
-        | s ->
-            try
-              if Sys.is_directory s then false
-              else if Sys.file_exists s then true else (Printf.printf "Missing file [%s].\n%!" s; false)
-            with Sys_error _ ->
-              Printf.eprintf "[Missing file %s]\n%!" s;
-              false
-      )
-      files
-  in
-  let files =
-    match !name_filter with
-    | None -> files
-    | Some filter ->
-        List.filter
-          (fun s ->
-             List.for_all (fun pattern -> Lexifi.S.contains_string ~pattern s || Lexifi.S.contains_string ~pattern (String.lowercase_ascii s)) filter
-          )
-          files
-  in
-  let files =
-    List.filter
-      (fun s ->
-         match !filter with
-         | None -> true
-         | Some l ->
-             let s = Printf.sprintf "^%s$" s in
-             (List.exists
-                (fun pattern -> Lexifi.S.contains_string ~pattern s)
-                l
-             )
-             && check_binary s
-      )
-      files
-  in
-  let files =
-    List.filter
-      (fun s -> not(List.exists (fun pattern -> Lexifi.S.contains_string ~pattern s || Lexifi.S.contains_string ~pattern (String.lowercase_ascii s)) !exclude_file_filter))
-      files
-  in
-  List.sort String.compare files
-
 let print_red_string s =
   if !emacs_mode then s
   else Printf.sprintf "\027[1;31m%s\027[00m" s
@@ -344,38 +246,6 @@ let expand_cwd =
   | None -> Fun.id
   | Some cwd -> Lexifi.F.concat cwd
 
-let print_results_with_color i s search file file_color =
-  let i_color = print_yellow_int i in
-  let s_color =
-    List.fold_left
-      (fun s (search, search_color) ->
-         if !case_sensitive then
-           Lexifi.S.replace_string s search search_color
-         else
-           let len = String.length s in
-           let s_low = String.lowercase_ascii s in
-           match Lexifi.S.find_substring ~pat:search s_low with
-           | None -> s
-           | Some index ->
-               let x = Lexifi.S.cut_end (len - index) s in
-               let y = Lexifi.S.cut_start (index + String.length search) s in
-               let search_color = print_red_string (String.sub s index (String.length search)) in
-               x ^ search_color ^ y
-      )
-      s
-      search
-  in
-  if Lexifi.S.is_printable s then
-    begin
-      Printf.fprintf stdout "%s:%s:%s\n%!" file_color i_color s_color;
-      if !from_start then
-        fwrite "%s:%i:%s\n%!" file i s
-      else
-        fwrite "%s:%i:%s\n%!" (expand_cwd file) i s;
-    end
-  else
-    Printf.fprintf stdout "%s:%s:<binary data>\n%!" file_color i_color
-
 let print_results_with_color_range i c1 c2 s file file_color =
   let i_color = print_yellow_int i in
   let s_color =
@@ -395,33 +265,6 @@ let print_results_with_color_range i c1 c2 s file file_color =
     end
   else
     Printf.fprintf stdout "%s:%s:<binary data>\n%!" file_color i_color
-
-let iteri_lines_with_ctx ctx f filename =
-  let channel = open_in filename in
-  let buf = Buffer.create 444 in
-  let ring_sz = 2*ctx+1 in
-  let ring = Array.make ring_sz "" in
-  let ring_to_string =
-    if ctx <= 0 then
-      fun i -> ring.(i mod ring_sz)
-    else
-      fun i ->
-        Buffer.reset buf;
-        for j = i - ctx to i + ctx do
-          Buffer.add_string buf (if j = i then "\n:" else "\n-");
-          Buffer.add_string buf ring.(j mod ring_sz);
-        done;
-        Buffer.contents buf
-  in
-  let rec loop i =
-    let line = input_line channel in
-    let ii = i + ring_sz in
-    ring.(ii mod ring_sz) <- line;
-    f (ctx + i) (ring_to_string ii) line;
-    loop (i + 1)
-  in
-  let loop i = try loop i with End_of_file -> () in
-  Fun.protect ~finally:(fun () -> close_in channel) (fun () -> loop (- ctx))
 
 let handle_global_match ~lines file =
   let file_color =
@@ -444,30 +287,6 @@ let handle_global_match ~lines file =
       fwrite "%s:1:<NOT FOUND>\n" (expand_cwd file);
   | _ ->
       ()
-
-let handle_file ~search ~check ~global_file_mode file =
-  if !verbose then prerr_endline file;
-  let file_no_color, file_color =
-    if !emacs_mode then
-      if !from_start then
-        Lexifi.F.absolute_path file, Lexifi.F.absolute_path file
-      else
-        file, file
-    else
-      file, print_green_string file
-  in
-  let lines = ref [] in
-  iteri_lines_with_ctx !ctx
-    (fun i sctx s ->
-       if check s then
-         begin
-           lines := (i + 1) :: !lines;
-           if not global_file_mode then
-             print_results_with_color (i + 1) sctx search file_no_color file_color
-         end
-    )
-    file;
-  !lines
 
 (*** Structured search ***)
 
@@ -811,26 +630,9 @@ and match_case : type k. k case -> _ -> _ = fun {c_lhs; c_guard; c_rhs} {pc_lhs;
   match_opt match_expr c_guard pc_guard;
   match_expr c_rhs pc_rhs
 
-let build_files_list () =
-  String.split_on_char '\000' (run_command ("git ls-files -z" ^ if !include_ocaml then "" else " :!ocaml"))
-
 let grep_svn () =
   if !from_start then Sys.chdir git_root;
   let search_list = !search in
-  let check =
-    let normalize_string = if !case_sensitive then Fun.id else String.lowercase_ascii in
-    let contains search = Lexifi.S.contains_string ~pattern:(normalize_string search) in
-    let search = List.map contains !search in
-    let search_exclude_filter = List.map contains !exclude_filter in
-    match search, search_exclude_filter with
-    | [f], [] -> (fun s -> f (normalize_string s))
-    | _ ->
-        (fun s ->
-           let s = normalize_string s in
-           List.for_all (fun f -> f s) search
-           && not (List.exists (fun f -> f s) search_exclude_filter)
-        )
-  in
   let search_expr =
     lazy
       begin try match !search with
@@ -897,104 +699,83 @@ let grep_svn () =
   let handle_global_match ~lines file =
     if global_file_mode then handle_global_match ~lines file
   in
-  if !cmt then begin
-    let git_prefix = run_command "git rev-parse --show-prefix" in
-    let rec walk dir =
-      Array.iter (fun entry ->
-          let entry = Filename.concat dir entry in
-          match (Unix.lstat entry).Unix.st_kind with
-          | Unix.S_DIR ->
-              walk entry
-          | Unix.S_REG when Filename.check_suffix entry ".cmt" ->
-              begin match Cmt_format.read_cmt entry with
-              | {Cmt_format.cmt_sourcefile = Some source; cmt_source_digest = Some digest; _} as cmt ->
-                  if search = [] then
-                    handle_global_match ~lines:[1] source
-                  else begin
-                    let source =
-                      match Lexifi.S.drop_prefix ~prefix:git_prefix source with
-                      | None -> source
-                      | Some source -> source
-                    in
-                    if not (Sys.file_exists source) then ()
-                    else if digest <> Digest.file source then begin
-                      Printf.eprintf "** Warning: %s does not correspond to %s (ignoring)\n%!"
-                        entry source
-                    end else begin
-                      if !verbose then prerr_endline source;
-                      let file_no_color, file_color =
-                        if !emacs_mode then
-                          if !from_start then
-                            Lexifi.F.absolute_path source, Lexifi.F.absolute_path source
-                          else
-                            source, source
+  let git_prefix = run_command "git rev-parse --show-prefix" in
+  let rec walk dir =
+    Array.iter (fun entry ->
+        let entry = Filename.concat dir entry in
+        match (Unix.lstat entry).Unix.st_kind with
+        | Unix.S_DIR ->
+            walk entry
+        | Unix.S_REG when Filename.check_suffix entry ".cmt" ->
+            begin match Cmt_format.read_cmt entry with
+            | {Cmt_format.cmt_sourcefile = Some source; cmt_source_digest = Some digest; _} as cmt ->
+                if search = [] then
+                  handle_global_match ~lines:[1] source
+                else begin
+                  let source =
+                    match Lexifi.S.drop_prefix ~prefix:git_prefix source with
+                    | None -> source
+                    | Some source -> source
+                  in
+                  if not (Sys.file_exists source) then ()
+                  else if digest <> Digest.file source then begin
+                    Printf.eprintf "** Warning: %s does not correspond to %s (ignoring)\n%!"
+                      entry source
+                  end else begin
+                    if !verbose then prerr_endline source;
+                    let file_no_color, file_color =
+                      if !emacs_mode then
+                        if !from_start then
+                          Lexifi.F.absolute_path source, Lexifi.F.absolute_path source
                         else
-                          source, print_green_string source
-                      in
-                      match search_cmt cmt with
-                      | exception Cannot_parse_type exn ->
-                          Format.printf "Error while analysing %s@.Cannot parse type@.%a@.Aborting@."
-                            entry Location.report_exception exn;
-                          exit 2
-                      | exception exn ->
-                          Format.printf "Error while analysing %s: %a@." entry Location.report_exception exn
-                      | [] -> ()
-                      | _ :: _ as locs ->
-                          let src_lines = Array.of_list (Lexifi.F.read_lines source) in
-                          let lines =
-                            List.map
-                              (fun {Location.loc_start; loc_end; _} ->
-                                 (* TODO: check that filename matches 'src' *)
-                                 let i = loc_start.pos_lnum in
-                                 let s = src_lines.(i - 1) in
-                                 let c1 = loc_start.pos_cnum - loc_start.pos_bol in
-                                 let c2 =
-                                   if loc_end.pos_lnum = loc_start.pos_lnum then
-                                     loc_end.pos_cnum - loc_end.pos_bol
-                                   else
-                                     String.length s
-                                 in
-                                 if not global_file_mode then
-                                   print_results_with_color_range i c1 c2 s file_no_color file_color;
-                                 i
-                              ) locs
-                          in
-                          handle_global_match ~lines source
-                    end
+                          source, source
+                      else
+                        source, print_green_string source
+                    in
+                    match search_cmt cmt with
+                    | exception Cannot_parse_type exn ->
+                        Format.printf "Error while analysing %s@.Cannot parse type@.%a@.Aborting@."
+                          entry Location.report_exception exn;
+                        exit 2
+                    | exception exn ->
+                        Format.printf "Error while analysing %s: %a@." entry Location.report_exception exn
+                    | [] -> ()
+                    | _ :: _ as locs ->
+                        let src_lines = Array.of_list (Lexifi.F.read_lines source) in
+                        let lines =
+                          List.map
+                            (fun {Location.loc_start; loc_end; _} ->
+                               (* TODO: check that filename matches 'src' *)
+                               let i = loc_start.pos_lnum in
+                               let s = src_lines.(i - 1) in
+                               let c1 = loc_start.pos_cnum - loc_start.pos_bol in
+                               let c2 =
+                                 if loc_end.pos_lnum = loc_start.pos_lnum then
+                                   loc_end.pos_cnum - loc_end.pos_bol
+                                 else
+                                   String.length s
+                               in
+                               if not global_file_mode then
+                                 print_results_with_color_range i c1 c2 s file_no_color file_color;
+                               i
+                            ) locs
+                        in
+                        handle_global_match ~lines source
                   end
-              | {cmt_sourcefile = None; _} | {cmt_source_digest = None; _} ->
-                  ()
-              | exception Cmt_format.Error (Cmt_format.Not_a_typedtree _) ->
-                  failwith "error reading cmt file"
-              end
-          | _ -> ()
-        ) (Sys.readdir dir)
-    in
-    prerr_endline
-      (print_yellow_string
-         "*** NOTE: if some hits seem to be missing (particularly in `applications/apropos'),\n\
-         \    you need to do `dune build @check' in order to build all `.cmt' files.");
-    walk (Filename.concat git_root (Filename.concat "_build/default" git_prefix))
-  end else begin
-    let handle s =
-      if search = [] then
-        handle_global_match ~lines:[1] s
-      else begin
-        match
-          handle_file
-            ~search
-            ~check ~global_file_mode s
-        with
-        | lines ->
-            handle_global_match ~lines s
-        | exception exn ->
-            Format.printf "Error while analysing %s: %a@." s Location.report_exception exn
-      end
-    in
-    let files = build_files_list () in
-    let files = compute_file_list ~files in
-    List.iter handle files
-  end
+                end
+            | {cmt_sourcefile = None; _} | {cmt_source_digest = None; _} ->
+                ()
+            | exception Cmt_format.Error (Cmt_format.Not_a_typedtree _) ->
+                failwith "error reading cmt file"
+            end
+        | _ -> ()
+      ) (Sys.readdir dir)
+  in
+  prerr_endline
+    (print_yellow_string
+       "*** NOTE: if some hits seem to be missing (particularly in `applications/apropos'),\n\
+       \    you need to do `dune build @check' in order to build all `.cmt' files.");
+  walk (Filename.concat git_root (Filename.concat "_build/default" git_prefix))
 
 let () =
   let load_path =
