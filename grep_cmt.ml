@@ -50,7 +50,6 @@ open Longident
 (*** Command-line parsing ***)
 
 let extra_includes = ref []
-let extend_load_path_with_addins = ref false
 let filter = ref None
 let name_filter = ref None
 let search = ref []
@@ -730,28 +729,6 @@ let grep_svn () =
        "*** NOTE: if some hits seem to be missing (particularly in `applications/apropos'),\n\
        \    you need to do `dune build @check' in order to build all `.cmt' files.");
   walk (Filename.concat git_root (Filename.concat "_build/default" git_prefix))
-
-let () =
-  let load_path =
-    [
-      Filename.concat git_root "_build/default/private/mlfi_core/.js_mlfi_core.objs/byte";
-      Filename.concat git_root "_build/default/private/mlfi_control/.mlfi_control.objs/byte";
-      Filename.concat git_root "_build/default/private/algebra/.algebra.objs/byte";
-      Filename.concat git_root "_build/default/private/mlfi_core/.mlfi_core.objs/byte";
-      Filename.concat git_root "_build/default/private/application_layer/.application_layer.objs/byte";
-      Filename.concat git_root "_build/default/private/application_layer/.apropos_support.objs/byte";
-      Filename.concat git_root "mlfi-ins/lib";
-    ]
-  in
-  let load_path =
-    if !extend_load_path_with_addins then
-      begin print_endline "EXTENDED TRUE";
-        Filename.concat git_root "_build/default/applications/apropos/.apropos.objs/byte" :: load_path
-      end
-    else
-      load_path
-  in
-  Load_path.init (List.rev_append !extra_includes load_path)
 
 let () =
   if !union then
