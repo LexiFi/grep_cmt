@@ -71,7 +71,7 @@ let no_grep_file =
 let () =
   let open Arg in
   let usage_msg =
-    "usage: grep_svn <options> <string>"
+    "usage: grep_cmt <options> <string>"
   in
   let parsers =
     align
@@ -548,7 +548,7 @@ and match_case : type k. k case -> _ -> _ = fun {c_lhs; c_guard; c_rhs} {pc_lhs;
   match_opt match_expr c_guard pc_guard;
   match_expr c_rhs pc_rhs
 
-let grep_svn () =
+let grep_cmt () =
   if !from_start then Sys.chdir git_root;
   let search_list = !search in
   let search_expr =
@@ -700,9 +700,9 @@ let () =
     List.iteri
       (fun i s ->
          if i <> 0 then create_grep_file := false;
-         search := [s]; grep_svn ()
+         search := [s]; grep_cmt ()
       )
       search_list;
   else
-    grep_svn ();
+    grep_cmt ();
   Option.iter close_out grep_file
