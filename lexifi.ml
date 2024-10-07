@@ -40,7 +40,6 @@ module S: sig
   val cut_end: int -> string -> string
   (** [cut_end n s] returns the string s without its last [n] characters *)
 
-
   val drop_prefix: prefix:string -> string -> string option
   (** [drop_prefix ~prefix s] returns [Some s'] if [s = prefix ^ s'] and [None] if [prefix] is not a prefix of [s]. *)
 
@@ -76,8 +75,13 @@ end
 
 module F: sig
   val concat: string -> string -> string
+  (** [concat dir file] returns a file name that designates file
+      [file] in directory [dir].
+      Also replace all forward slashes with backslashes in the result, under Windows *)
 
   val read_lines: string -> string list
+  (** [read_lines filename] reads [filename] and return the list of its lines.
+      Both LF and CRLF are interpreted as line delimiters. *)
 
   val absolute_path: string -> string
   (** Make a path name absolute and simplify . and .. components. *)
