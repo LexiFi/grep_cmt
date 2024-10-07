@@ -6,17 +6,6 @@
 module L = struct
   module ObjSet = Set.Make(struct type t = Obj.t let compare = Stdlib.compare end)
 
-  let mem_list_map f = function
-    | [] -> fun _ -> false
-    | [e] -> let e = f e in fun x -> Stdlib.compare x e = 0
-    | [e1; e2] -> let e1 = f e1 and e2 = f e2 in fun x -> Stdlib.compare x e1 = 0 || Stdlib.compare x e2 = 0
-    | [e1; e2; e3] -> let e1 = f e1 and e2 = f e2 and e3 = f e3 in fun x -> Stdlib.compare x e1 = 0 || Stdlib.compare x e2 = 0 || Stdlib.compare x e3 = 0
-    | l ->
-        let s = List.fold_left (fun acc e -> ObjSet.add (Obj.repr (f e)) acc) ObjSet.empty l in
-        fun e -> ObjSet.mem (Obj.repr e) s
-
-  let mem_list l = mem_list_map Fun.id l
-
   let to_string sep f = function
     | [] -> ""
     | hd :: tl ->
