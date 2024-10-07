@@ -51,16 +51,12 @@ open Longident
 
 let extra_includes = ref []
 let extend_load_path_with_addins = ref false
-let exclude_filter = ref []
-let exclude_file_filter = ref []
 let filter = ref None
 let name_filter = ref None
 let search = ref []
 let case_sensitive = ref true
-let with_binary = ref false
 let exclude = ref false
 let global_file_mode = ref false
-let include_ocaml = ref false
 let create_grep_file = ref true
 let union = ref false
 let from_start = ref false
@@ -75,15 +71,6 @@ let add_filter s =
     | Some l -> s :: l
   in
   filter := Some l
-
-let add_name_filter s =
-  with_binary := true;
-  let l =
-    match !name_filter with
-    | None -> [s]
-    | Some l -> s :: l
-  in
-  name_filter := Some l
 
 let add_filter_ext s () =
   add_filter ("." ^ s ^ "$")
@@ -114,44 +101,13 @@ let () =
   let parsers =
     align
       [
-        "-ext", String (fun s -> add_filter_ext s ()), "<ext> grep for extension";
-        "-build", Unit (fun () -> add_filter "Makefile."; add_filter "Makefile$"; add_filter "dune."; add_filter "dune$"), " grep for Makefile, Makefile.*, dune and dune.*";
         "-verbose", Set verbose, " verbose mode";
-        "-v", String (fun s -> exclude_filter := s :: !exclude_filter), "<string> exclude filter";
-        "-vname", String (fun s -> exclude_file_filter := s :: !exclude_file_filter), "<string> exclude filter";
         "-C", Int ((:=) ctx), " context lines; mimic the C option of grep";
         "-c", Unit (add_filter_ext "c"), " identical to -ext c";
-        "-cs", Unit (add_filter_ext "cs"), " identical to -ext cs";
-        "-csml", Unit (add_filter_ext "csml"), " identical to -ext csml";
-        "-ml", Unit (add_filter_ext "ml"), " identical to -ext ml";
-        "-mli", Unit (add_filter_ext "mli"), " identical to -ext mli";
-        "-txt", Unit (add_filter_ext "txt"), " identical to -ext txt";
-(*
-       "-expr", Set cmt_expr, " structural search (__ for a wildcard; named wildcards are in the form __1, __2, etc.)";
-       "-expr_context", Set cmt_expr_context, " display the whole matched expression when performing structural search";
-*)
-(*
-       "-types", Set types, " search for values of specified type (only with -cmt option)";
-       "-values", Set values, " search for values";
-       "-prop", Set prop, " search for properties";
-       "-modules", Set modules, " search for modules and module types";
-       "-methods", Set methods, " search for methods";
-       "-class", Set classes, " search for classes";
-       "-exceptions", Set exceptions, " search for exceptions";
-*)
-        "-union", Set union, " search lines containing at least one of the given words. The default search is the intersection of all the given words.";
-        "-i", Clear case_sensitive, " case insensitive search";
-        "-global", Set global_file_mode, " search for files not lines";
-        "-exclude", Set exclude, " in global mode, exclude search";
-        "-with_binary", Set with_binary, " search also binary files";
-        "-ocaml", Set include_ocaml, " search also in ocaml directory";
-        "-name", String (fun s -> add_name_filter s), " add filter on file name";
-        "-add", Clear create_grep_file, " add search results to existing ones (don't replace them)";
         "-root", Set from_start, " search from root directory";
         "-emacs", Set emacs_mode, " output is emacs friendly";
+        "-i", Clear case_sensitive, " case insensitive search";
         "-I", String (fun s -> extra_includes := s :: !extra_includes), "<dir> extend load path";
-        "-search", String (fun s -> search := s :: !search), "<string> add 'string' to search list";
-        "-addins", Set extend_load_path_with_addins, "extend load path with paths to addins";
       ]
   in
   let parse () =
