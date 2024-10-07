@@ -72,7 +72,6 @@ let () =
     align
       [
         "-verbose", Set verbose, " verbose mode";
-        "-v", Set verbose, " same as -verbose";
         "-root", Set from_start, " search from root directory";
         "-i", Clear case_sensitive, " case insensitive search";
         "-I", String (fun s -> extra_includes := s :: !extra_includes), "<dir> extend load path";
