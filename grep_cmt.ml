@@ -59,7 +59,6 @@ let create_grep_file = ref true
 let union = ref false
 let from_start = ref false
 let emacs_mode = ref false
-let ctx = ref 0
 let verbose = ref false
 
 let no_grep_file =
@@ -78,7 +77,6 @@ let () =
       [
         "-verbose", Set verbose, " verbose mode";
         "-v", Set verbose, " same as -verbose";
-        "-C", Int ((:=) ctx), " context lines; mimic the C option of grep";
         "-root", Set from_start, " search from root directory";
         "-emacs", Set emacs_mode, " output is emacs friendly";
         "-i", Clear case_sensitive, " case insensitive search";

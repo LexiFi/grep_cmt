@@ -23,7 +23,6 @@ grep_cmt [OPTIONS] PATTERN
 ### Options
 
 - `-verbose` or `-v`: Enable verbose mode for detailed logging.
-- `-C N`: Display N lines of context around the match.
 - `-root`: Set the root directory for the search to start from.
 - `-emacs`: Produce output friendly for Emacs compilation mode.
 - `-i`: Perform a case-insensitive search.
