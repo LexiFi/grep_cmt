@@ -77,6 +77,7 @@ let () =
     align
       [
         "-verbose", Set verbose, " verbose mode";
+        "-v", Set verbose, " same as -verbose";
         "-C", Int ((:=) ctx), " context lines; mimic the C option of grep";
         "-root", Set from_start, " search from root directory";
         "-emacs", Set emacs_mode, " output is emacs friendly";
