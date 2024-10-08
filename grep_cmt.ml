@@ -78,6 +78,9 @@ let build_root, build_prefix =
   in
   loop "" initial_cwd
 
+let in_build_dir path =
+  Filename.concat build_root (Filename.concat "_build" (Filename.concat "default" path))
+
 type color =
   | Yellow
   | Red
@@ -491,11 +494,17 @@ let grep_cmt search =
         else if Filename.check_suffix entry ".cmt" then begin
           match Cmt_format.read_cmt entry with
           | {Cmt_format.cmt_sourcefile = Some source; cmt_source_digest = Some digest; _} as cmt ->
-              let source = drop_prefix ~prefix:build_prefix source in
-              if not (Sys.file_exists source) then ()
-              else if digest <> Digest.file source then
+              let source, pp_source =
+                if Filename.check_suffix source ".pp.ml" then
+                  Filename.chop_suffix source ".pp.ml" ^ ".ml", in_build_dir source
+                else
+                  let source = drop_prefix ~prefix:build_prefix source in
+                  source, source
+              in
+              if not (Sys.file_exists pp_source) then ()
+              else if digest <> Digest.file pp_source then
                 Printf.eprintf "** Warning: %s does not correspond to %s (ignoring)\n%!"
-                  entry source
+                  entry pp_source
               else begin
                 let file_color = color Green "%s" source in
                 match search_cmt cmt with
@@ -529,7 +538,7 @@ let grep_cmt search =
         end
       ) (Sys.readdir dir)
   in
-  walk (Filename.concat build_root (Filename.concat "_build" (Filename.concat "default" build_prefix)))
+  walk (in_build_dir build_prefix)
 
 (*** Command-line parsing ***)
 
@@ -544,6 +553,7 @@ let () =
       ]
   in
   Arg.parse parsers (fun s -> search := Some s) usage_msg;
+  Load_path.init ~auto_include:Load_path.no_auto_include ~visible:(List.rev_append !extra_includes [Config.standard_library]) ~hidden:[];
   match !search with
   | None -> Arg.usage parsers usage_msg; exit 0
   | Some s -> grep_cmt s
