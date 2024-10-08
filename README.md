@@ -1,3 +1,12 @@
+> NOTE: this code is made available for the interest of the community, but is
+> provided with absolutely no WARRANTY or SUPPORT of any kind. If you have
+> questions about the code, feel free to contact us, but we may not be able to
+> help you.  Suggestions for improvements are also likely to be
+> ignored. Instead, we encourage you to take the approach (and the code) and
+> develop on your own into a proper, user-friendly, powerful, code refactoring tool.
+>
+> Thanks! - LexiFi
+
 # Semantic search of OCaml values
 
 `grep_cmt` is a command-line tool written at LexiFi to perform semantic search
