@@ -1,36 +1,70 @@
-# Structural search of OCaml values
+# Semantic search of OCaml values
 
-`grep_cmt` is a command-line tool written in OCaml, designed to perform a structural search within OCaml `.cmt` files (compiled module types). This tool leverages OCaml's abstract syntax to allow advanced pattern matching and structural queries on OCaml projects.
+`grep_cmt` is a command-line tool written at LexiFi to perform semantic search
+of OCaml code.
 
-## Features
-
-- **Wildcard Matching**: Supports wildcards for expressions and record fields with `__` matching any expression or field, and numbered wildcards `__1`, `__2`, ... ensuring equality among occurrences.
-
-- **Pattern Matching**: Grep patterns can include identifiers, labels, constructors, function applications with optional arguments, and more.
-
-- **Structural Constraints**: Allows for type constraints in expressions and is flexible about the order of clauses in match expressions.
+The code is released as-is in case it is of interest to the community. The
+present code is extracted from a version used internally at LexiFi and we do not
+pretend that it is ready for public consumption, but we are making the code
+available to publicize the approach.
 
 ## Usage
 
 ```shell
-grep_cmt [OPTIONS] PATTERN
+grep_cmt PATTERN
 ```
 
-- `PATTERN`: The string or pattern to search for. This should be a valid OCaml expression pattern.
+The tool assumes that it is executed within a Dune workspace, as it has a number
+of heuristics that will not work otherwise.
 
-### Options
+`PATTERN`: The pattern to search for. This should be a valid OCaml *expression*.
 
-- `-I <dir>`: Include a directory in the load path for the search.
+- The wildcard `__` matches any expression or any record field.
 
-## Installation
+- A numbered wildcard `__1`, `__2`, ... matches any expression or record field
+  and enforce strict equality of all the matching occurrences for the same
+  number.
+
+- An identifier (value or class) is matched as a suffix of the fully qualified
+  path in the typed expression.
+
+- Labels and constructors identifiers are matched as a suffix of the identifier
+  in the typed expression.
+
+- For function applications, it is allowed to omit in the pattern any argument
+  of the actual function call; special forms are recognized to enforce that a
+  given optional argument present or missing:
+  ```
+  foo ?arg:PRESENT
+  foo ?arg:MISSING
+  ```
+
+- An expression `(... : typexpr)` matches any expression matching `...` and
+  whose type is equal to `typexpr`.
+
+- For `try..with`/`match..with`/`functions` expressions, the order of clauses
+  doesn't matter.  A single clause of the searched expression can match several
+  clauses of the code.  Same set-semantics for record expressions.
+
+- An expression `e1.lid1` matches `e2.lid2 <- e3` if `e1` matches `e2` and the
+  label `lid1` matches `lid2`.
+
+- The expression `__.id` matches any *pattern* of the form `{...; P.id; ...}`
+  for any prefix `P`. This rule was added so that grepping for `__.foo` will
+  return every "get" and "set" of the record field `foo`, including reads in
+  patterns.
+
+## Compilation
 
 ```sh
 dune build
 ```
 
-This produces an executable `grep_cmt.exe` which can be run from the command line.
+This produces an executable `_build/install/bin/grep_cmt.exe` which can be run
+from the command line.
 
-You'll need to run `dune build @check` in your project to ensure all `.cmt` files are up-to-date before using `grep_cmt`.
+You'll need to run `dune build @check` in your project to ensure all `.cmt`
+files are up-to-date before using `grep_cmt`.
 
 ## Examples
 

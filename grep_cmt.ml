@@ -1,46 +1,6 @@
-(* This file is part of the grep_cmt package, released under the terms of an MIT-like license. *)
-(* See the attached LICENSE file.                                                              *)
-(* Copyright (C) 2000-2024 LexiFi                                                              *)
-
-(*
-  Notes about structural search:
-
-  - the wildcard __ matches any expression or any record field
-
-  - a numbered wildcard __1, __2, ... matches any expression or record field
-    and enforce strict equality of all the matching occurrences for the same
-    number
-
-  - an identifier (value or class) is matched as a suffix of the fully
-    qualified path in the typed expression
-
-  - labels and constructors identifiers are matched as a suffix of the
-    identifier in the typed expression.
-
-  - for function applications, it is allowed to omit in the pattern
-    any argument of the actual function call; special forms
-    are recognized to enforce that a given optional argument
-    present or missing:
-
-      foo ?arg:PRESENT
-      foo ?arg:MISSING
-
-  - an expression (... : typexpr) matches any expression matching
-    ... and whose type is equal to typexpr
-
-  - for try..with/match..with/functions expressions, the order
-    of clauses doesn't matter.  A single clause of the searched
-    expression can match several clauses of the code.  Same set-semantics
-    for record expressions.
-
-  - an expression [e1.lid1] matches [e2.lid2 <- e3] if [e1] matches [e2] and
-    the label [lid1] matches [lid2].
-
-  - the expression [__.id] matches any *pattern* of the form [{...; P.id; ...}]
-    for any prefix [P]. This rule was added so that grepping for [__.foo] will
-    return every "get" and "set" of the record field [foo], including reads in
-    patterns.
-*)
+(* This file is part of the grep_cmt package *)
+(* See the attached LICENSE file.            *)
+(* Copyright (C) 2000-2024 LexiFi            *)
 
 open Asttypes
 open Parsetree
