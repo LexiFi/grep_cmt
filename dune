@@ -1,4 +1,3 @@
 (executable
  (public_name grep_cmt)
- (promote (until-clean))
- (libraries compiler-libs.common unix))
+ (libraries compiler-libs.common))

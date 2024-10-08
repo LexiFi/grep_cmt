@@ -10,8 +10,6 @@
 
 - **Structural Constraints**: Allows for type constraints in expressions and is flexible about the order of clauses in match expressions.
 
-- **Compatibility Modes**: Offers options for Emacs-compatible output and verbose logging.
-
 ## Usage
 
 ```shell
@@ -22,12 +20,7 @@ grep_cmt [OPTIONS] PATTERN
 
 ### Options
 
-- `-verbose`: Enable verbose mode for detailed logging.
-- `-root`: Set the root directory for the search to start from.
-- `-emacs`: Produce output friendly for Emacs compilation mode.
-- `-i`: Perform a case-insensitive search.
 - `-I <dir>`: Include a directory in the load path for the search.
-
 
 ## Installation
 

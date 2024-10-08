@@ -47,146 +47,58 @@ open Parsetree
 open Typedtree
 open Longident
 
-(*** Command-line parsing ***)
-
-let extra_includes = ref []
-let name_filter = ref None
-let search = ref []
-let case_sensitive = ref true
-let create_grep_file = ref true
-let from_start = ref false
-let verbose = ref false
-
-let no_grep_file =
-  try
-    ignore (Sys.getenv "NOGREPFILE");
-    true
-  with Not_found -> false
-
-let () =
-  let open Arg in
-  let usage_msg =
-    "usage: grep_cmt <options> <string>"
-  in
-  let parsers =
-    align
-      [
-        "-verbose", Set verbose, " verbose mode";
-        "-root", Set from_start, " search from root directory";
-        "-i", Clear case_sensitive, " case insensitive search";
-        "-I", String (fun s -> extra_includes := s :: !extra_includes), "<dir> extend load path";
-      ]
-  in
-  let parse () =
-    parse
-      parsers
-      (fun s -> search := s :: !search)
-      usage_msg
-  in
-  parse ();
-  begin match !search, !name_filter with
-  | [], None -> usage parsers usage_msg; exit 0
-  | _ -> ()
-  end
-
-
-(*** Collect files ***)
-
-
 let initial_cwd = Sys.getcwd ()
 
-let run_command cmd =
-  let inchan = Unix.open_process_in cmd in
-  let buf = try input_line inchan with End_of_file -> "" in
-  let err = Unix.close_process_in inchan in
-  match err with
-  | WEXITED 0 ->
-      buf
-  | _ ->
-      Printf.eprintf "Command failed: %s\n%!" cmd;
-      exit 2
-
-let git_root =
-  run_command "git rev-parse --show-toplevel"
-
-let grep_file =
-  if no_grep_file then
-    None
+let drop_prefix ~prefix s =
+  if String.starts_with ~prefix s then
+    String.sub s (String.length prefix) (String.length s - String.length prefix)
   else
-    let ret =
-      let file = Lexifi.F.concat git_root "grep_cmt.grep" in
-      if !create_grep_file then
-        open_out file
-      else
-        open_out_gen [Open_wronly; Open_append; Open_text] 0o666 file
-    in
-    Some ret
+    s
 
-let write str = Option.iter (fun file -> output_string file str; flush file) grep_file
+let read_lines fn =
+  String.split_on_char '\n' (In_channel.with_open_text fn In_channel.input_all)
 
-let fwrite x = Printf.ksprintf write x
+let memoize h f k =
+  match Hashtbl.find_opt h k with
+  | None -> let r = f k in Hashtbl.add h k r; r
+  | Some r -> r
 
-let () =
-  let args =
-    String.concat " "
-      [
-        "-*-";
-        "mode: grep;";
-        Printf.sprintf "compilation-directory: %S;" (Sys.getcwd());
-        Printf.sprintf "compile-command: %S;"
-          (String.concat " " (Array.to_list Sys.argv));
-        "-*-";
-      ]
+let build_root, build_prefix =
+  let rec loop prefix dir =
+    if Sys.file_exists (Filename.concat dir "_build") then
+      let absdir =
+        Fun.protect ~finally:(fun () -> Sys.chdir initial_cwd)
+          (fun () -> Sys.chdir dir; Sys.getcwd ())
+      in
+      absdir, prefix
+    else
+      let dir' = Filename.dirname dir in
+      if dir' = dir then failwith "Could not detect _build";
+      loop (Filename.concat (Filename.basename dir) prefix) dir'
   in
-  fwrite "%s\n\n" args
+  loop "" initial_cwd
 
-let print_red_string s =
-  Printf.sprintf "\027[1;31m%s\027[00m" s
+type color =
+  | Yellow
+  | Red
+  | Green
 
-let print_green_string s =
-  Printf.sprintf "\027[1;32m%s\027[00m" s
+let color c fmt =
+  Printf.sprintf ("\027[1;%dm" ^^ fmt ^^ "\027[0m") (match c with Yellow -> 33 | Red -> 31 | Green -> 32)
 
-let print_yellow_string s =
-  Printf.sprintf "\027[1;33m%s\027[00m" s
-
-let print_yellow_int i =
-  Printf.sprintf "\027[1;33m%i\027[00m" i
-
-let expand_cwd =
-  match
-    Lexifi.S.drop_prefix ~prefix:(Lexifi.F.concat git_root "") initial_cwd
-  with
-  | None -> Fun.id
-  | Some cwd -> Lexifi.F.concat cwd
-
-let print_results_with_color_range i c1 c2 s file file_color =
-  let i_color = print_yellow_int i in
+let print_results_with_color_range i c1 c2 s file_color =
+  let i_color = color Yellow "%d" i in
   let s_color =
     let len = String.length s in
     if c2 > len || c1 > len then
       Printf.sprintf
         " Skipping this line with wrong indexes -- Maybe you should think about recompiling this file."
     else
-      String.sub s 0 c1^
-      print_red_string (String.sub s c1 (c2-c1))^
+      String.sub s 0 c1 ^
+      color Red "%s" (String.sub s c1 (c2-c1)) ^
       String.sub s c2 (String.length s - c2)
   in
-  if Lexifi.S.is_printable s then
-    begin
-      Printf.fprintf stdout "%s:%s:%s\n%!" file_color i_color s_color;
-      fwrite "%s:%i:%s\n%!" file i s;
-    end
-
-let handle_global_match ~lines file =
-  let file_color = print_green_string file in
-  match List.sort_uniq Int.compare lines with
-  | line :: l ->
-      let lines = Lexifi.L.to_string " " string_of_int l in
-      let line_color = print_yellow_int line in
-      Printf.fprintf stdout "%s:%s:<FOUND>:%s\n%!" file_color line_color lines;
-      fwrite "%s:%i:<FOUND>:%s\n" (expand_cwd file) line lines;
-  | _ ->
-      ()
+  Printf.printf "%s:%s:%s\n%!" file_color i_color s_color
 
 (*** Structured search ***)
 
@@ -277,7 +189,7 @@ let parse_type t =
   try (Typetexp.transl_type_scheme env (*true*) t).ctyp_type
   with e -> raise (Cannot_parse_type e)
 
-let parse_type = Lexifi.H.memoize (Hashtbl.create 10) parse_type
+let parse_type = memoize (Hashtbl.create 10) parse_type
 
 let initial_env = lazy (Compmisc.initial_env ())
 
@@ -338,14 +250,13 @@ let rec match_expr texpr pexpr =
             check_all (loop targs) pargs
       in
       check_all targs pargs
-
-  | Texp_function {arg_label = Nolabel; cases = tcases; _}, Pexp_function pcases ->
+  | Texp_function ([{fp_arg_label = Nolabel; _}], Tfunction_cases {cases = tcases; _}), Pexp_function ([{pparam_desc = Pparam_val (Nolabel, None, _); _}], _, Pfunction_cases (pcases, _, _)) ->
       match_cases tcases pcases
-  | Texp_function {arg_label = l1; cases = [{c_lhs=p1; c_guard=None; c_rhs=e1}]; _},
-    Pexp_fun (l2, None, p2, e2)
-    when l1 = l2 ->
-      match_pat p1 p2;
-      match_expr e1 e2
+  (* | Texp_function {arg_label = l1; cases = [{c_lhs=p1; c_guard=None; c_rhs=e1}]; _}, *)
+  (*   Pexp_fun (l2, None, p2, e2) *)
+  (*   when l1 = l2 -> *)
+  (*     match_pat p1 p2; *)
+  (*     match_expr e1 e2 *)
 
   | Texp_construct (tcstr, _tconstr_desc, texprs), Pexp_construct (pcstr, pexpr_opt) ->
       constructor_match tcstr.txt pcstr.txt;
@@ -383,7 +294,7 @@ let rec match_expr texpr pexpr =
       match_expr te1 pe1;
       match_expr te2 pe2
 
-  | Texp_assert te, Pexp_assert pe
+  | Texp_assert (te, _), Pexp_assert pe
   | Texp_lazy te, Pexp_lazy pe ->
       match_expr te pe
 
@@ -469,9 +380,9 @@ and match_pat : type k. k general_pattern -> _ -> _ = fun tpat ppat ->
   match tpat.pat_desc, ppat.ppat_desc with
   | Tpat_any, Ppat_any -> ()
   | _, Ppat_var {txt = "__"; _} -> ()
-  | Tpat_var (_, {txt = s1; _}), Ppat_var {txt = s2; _} when is_wildcard s2 ->
+  | Tpat_var (_, {txt = s1; _}, _), Ppat_var {txt = s2; _} when is_wildcard s2 ->
       check_wildcard_lid s2 (Lident s1)
-  | Tpat_var (_, {txt = s1; _}), Ppat_var {txt = s2; _} when s1 = s2 -> ()
+  | Tpat_var (_, {txt = s1; _}, _), Ppat_var {txt = s2; _} when s1 = s2 -> ()
   | Tpat_tuple tl, Ppat_tuple pl -> match_list match_pat tl pl
   | Tpat_constant tc, Ppat_constant pc when tconstant_equal_pconst tc pc -> ()
   | Tpat_construct (tcstr, _tconstr_desc, tpats, _), Ppat_construct (pcstr, ppat_opt) ->
@@ -514,8 +425,8 @@ and match_value_bindings t p =
   match_set match_value_binding t p
 
 and match_value_binding
-    {vb_pat; vb_expr; vb_attributes = _; vb_loc = _}
-    {pvb_pat; pvb_expr; pvb_attributes = _; pvb_loc = _} =
+    {vb_pat; vb_expr; vb_attributes = _; vb_loc = _; vb_rec_kind = _}
+    {pvb_pat; pvb_expr; pvb_attributes = _; pvb_loc = _; pvb_constraint = _} =
   match_expr vb_expr pvb_expr;
   match_pat vb_pat pvb_pat
 
@@ -524,19 +435,13 @@ and match_case : type k. k case -> _ -> _ = fun {c_lhs; c_guard; c_rhs} {pc_lhs;
   match_opt match_expr c_guard pc_guard;
   match_expr c_rhs pc_rhs
 
-let grep_cmt () =
-  if !from_start then Sys.chdir git_root;
-  let search_list = !search in
+let grep_cmt search =
   let search_expr =
-    lazy
-      begin try match !search with
-        | [s] ->
-            begin match Parse.implementation (Lexing.from_string s) with
-            | [{Parsetree.pstr_desc = Pstr_eval (x, _); _}] -> x
-            | _ -> failwith "Can only grep for an expression"
-            end
-        | _ ->
-            assert false
+    lazy begin
+      try
+        match Parse.implementation (Lexing.from_string search) with
+        | [{Parsetree.pstr_desc = Pstr_eval (x, _); _}] -> x
+        | _ -> failwith "Can only grep for an expression"
       with
       | Syntaxerr.Error _ as exn ->
           Format.printf "Error while parsing search expression: %a@." Location.report_exception exn;
@@ -578,98 +483,67 @@ let grep_cmt () =
     end;
     List.sort Stdlib.compare !res
   in
-  let search =
-    List.map
-      (fun search ->
-         let search_color = print_red_string search in
-         search, search_color
-      )
-      search_list
-  in
-  write "\n";
-  let global_file_mode =
-    search = []
-  in
-  let handle_global_match ~lines file =
-    if global_file_mode then handle_global_match ~lines file
-  in
-  let git_prefix = run_command "git rev-parse --show-prefix" in
   let rec walk dir =
     Array.iter (fun entry ->
         let entry = Filename.concat dir entry in
-        match (Unix.lstat entry).Unix.st_kind with
-        | Unix.S_DIR ->
-            walk entry
-        | Unix.S_REG when Filename.check_suffix entry ".cmt" ->
-            begin match Cmt_format.read_cmt entry with
-            | {Cmt_format.cmt_sourcefile = Some source; cmt_source_digest = Some digest; _} as cmt ->
-                if search = [] then
-                  handle_global_match ~lines:[1] source
-                else begin
-                  let source =
-                    match Lexifi.S.drop_prefix ~prefix:git_prefix source with
-                    | None -> source
-                    | Some source -> source
-                  in
-                  if not (Sys.file_exists source) then ()
-                  else if digest <> Digest.file source then begin
-                    Printf.eprintf "** Warning: %s does not correspond to %s (ignoring)\n%!"
-                      entry source
-                  end else begin
-                    if !verbose then prerr_endline source;
-                    let file_no_color, file_color =
-                      source, print_green_string source
-                    in
-                    match search_cmt cmt with
-                    | exception Cannot_parse_type exn ->
-                        Format.printf "Error while analysing %s@.Cannot parse type@.%a@.Aborting@."
-                          entry Location.report_exception exn;
-                        exit 2
-                    | exception exn ->
-                        Format.printf "Error while analysing %s: %a@." entry Location.report_exception exn
-                    | [] -> ()
-                    | _ :: _ as locs ->
-                        let src_lines = Array.of_list (Lexifi.F.read_lines source) in
-                        let lines =
-                          List.map
-                            (fun {Location.loc_start; loc_end; _} ->
-                               let i = loc_start.pos_lnum in
-                               let s = src_lines.(i - 1) in
-                               let c1 = loc_start.pos_cnum - loc_start.pos_bol in
-                               let c2 =
-                                 if loc_end.pos_lnum = loc_start.pos_lnum then
-                                   loc_end.pos_cnum - loc_end.pos_bol
-                                 else
-                                   String.length s
-                               in
-                               if not global_file_mode then
-                                 print_results_with_color_range i c1 c2 s file_no_color file_color;
-                               i
-                            ) locs
-                        in
-                        handle_global_match ~lines source
-                  end
-                end
-            | {cmt_sourcefile = None; _} | {cmt_source_digest = None; _} ->
-                ()
-            | exception Cmt_format.Error (Cmt_format.Not_a_typedtree _) ->
-                failwith "error reading cmt file"
-            end
-        | _ -> ()
+        if Sys.is_directory entry then
+          walk entry
+        else if Filename.check_suffix entry ".cmt" then begin
+          match Cmt_format.read_cmt entry with
+          | {Cmt_format.cmt_sourcefile = Some source; cmt_source_digest = Some digest; _} as cmt ->
+              let source = drop_prefix ~prefix:build_prefix source in
+              if not (Sys.file_exists source) then ()
+              else if digest <> Digest.file source then
+                Printf.eprintf "** Warning: %s does not correspond to %s (ignoring)\n%!"
+                  entry source
+              else begin
+                let file_color = color Green "%s" source in
+                match search_cmt cmt with
+                | exception Cannot_parse_type exn ->
+                    Format.printf "Error while analysing %s@.Cannot parse type@.%a@.Aborting@."
+                      entry Location.report_exception exn;
+                    exit 2
+                | exception exn ->
+                    Format.printf "Error while analysing %s: %a@." entry Location.report_exception exn
+                | [] -> ()
+                | _ :: _ as locs ->
+                    let src_lines = Array.of_list (read_lines source) in
+                    List.iter
+                      (fun {Location.loc_start; loc_end; _} ->
+                         let i = loc_start.pos_lnum in
+                         let s = src_lines.(i - 1) in
+                         let c1 = loc_start.pos_cnum - loc_start.pos_bol in
+                         let c2 =
+                           if loc_end.pos_lnum = loc_start.pos_lnum then
+                             loc_end.pos_cnum - loc_end.pos_bol
+                           else
+                             String.length s
+                         in
+                         print_results_with_color_range i c1 c2 s file_color
+                      ) locs
+              end
+          | {cmt_sourcefile = None; _} | {cmt_source_digest = None; _} ->
+              ()
+          | exception Cmt_format.Error (Cmt_format.Not_a_typedtree _) ->
+              failwith "error reading cmt file"
+        end
       ) (Sys.readdir dir)
   in
-  prerr_endline
-    (print_yellow_string
-       "*** NOTE: if some hits seem to be missing (particularly in `applications/apropos'),\n\
-       \    you need to do `dune build @check' in order to build all `.cmt' files.");
-  walk (Filename.concat git_root (Filename.concat "_build/default" git_prefix))
+  walk (Filename.concat build_root (Filename.concat "_build" (Filename.concat "default" build_prefix)))
+
+(*** Command-line parsing ***)
 
 let () =
-  let search_list = List.rev !search in
-  List.iteri
-    (fun i s ->
-       if i <> 0 then create_grep_file := false;
-       search := [s]; grep_cmt ()
-    )
-    search_list;
-  Option.iter close_out grep_file
+  let extra_includes = ref [] in
+  let search = ref None in
+  let usage_msg = "Usage: grep_cmt <options> <string>" in
+  let parsers =
+    Arg.align
+      [
+        "-I", String (fun s -> extra_includes := s :: !extra_includes), "<dir> extend load path";
+      ]
+  in
+  Arg.parse parsers (fun s -> search := Some s) usage_msg;
+  match !search with
+  | None -> Arg.usage parsers usage_msg; exit 0
+  | Some s -> grep_cmt s
