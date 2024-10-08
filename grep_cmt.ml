@@ -1,6 +1,6 @@
-(* This file is part of the grep-cmt package, released under the terms of an MIT-like license.     *)
-(* See the attached LICENSE file.                                                                  *)
-(* Copyright (C) 2000-2024 LexiFi                                                                  *)
+(* This file is part of the grep_cmt package, released under the terms of an MIT-like license. *)
+(* See the attached LICENSE file.                                                              *)
+(* Copyright (C) 2000-2024 LexiFi                                                              *)
 
 (*
   Notes about structural search:
@@ -187,14 +187,14 @@ let match_list f t p =
 
 exception Cannot_parse_type of exn
 
+let initial_env = lazy (Compmisc.initial_env ())
+
 let parse_type t =
-  let env = Compmisc.initial_env () in
-  try (Typetexp.transl_type_scheme env (*true*) t).ctyp_type
+  let env = Lazy.force initial_env in
+  try (Typetexp.transl_type_scheme env t).ctyp_type
   with e -> raise (Cannot_parse_type e)
 
 let parse_type = memoize (Hashtbl.create 10) parse_type
-
-let initial_env = lazy (Compmisc.initial_env ())
 
 let tconstant_equal_pconst tconst pconst =
   match Typecore.constant pconst with
@@ -255,11 +255,6 @@ let rec match_expr texpr pexpr =
       check_all targs pargs
   | Texp_function ([{fp_arg_label = Nolabel; _}], Tfunction_cases {cases = tcases; _}), Pexp_function ([{pparam_desc = Pparam_val (Nolabel, None, _); _}], _, Pfunction_cases (pcases, _, _)) ->
       match_cases tcases pcases
-  (* | Texp_function {arg_label = l1; cases = [{c_lhs=p1; c_guard=None; c_rhs=e1}]; _}, *)
-  (*   Pexp_fun (l2, None, p2, e2) *)
-  (*   when l1 = l2 -> *)
-  (*     match_pat p1 p2; *)
-  (*     match_expr e1 e2 *)
 
   | Texp_construct (tcstr, _tconstr_desc, texprs), Pexp_construct (pcstr, pexpr_opt) ->
       constructor_match tcstr.txt pcstr.txt;
@@ -439,25 +434,14 @@ and match_case : type k. k case -> _ -> _ = fun {c_lhs; c_guard; c_rhs} {pc_lhs;
   match_expr c_rhs pc_rhs
 
 let grep_cmt search =
-  let search_expr =
-    lazy begin
-      try
-        match Parse.implementation (Lexing.from_string search) with
-        | [{Parsetree.pstr_desc = Pstr_eval (x, _); _}] -> x
-        | _ -> failwith "Can only grep for an expression"
-      with
-      | Syntaxerr.Error _ as exn ->
-          Format.printf "Error while parsing search expression: %a@." Location.report_exception exn;
-          exit 2
-      | exn ->
-          Printf.eprintf "Error while parsing search expression: %s\n%!"
-            (Printexc.to_string exn);
-          exit 2
-      end
+  let expr =
+    match Parse.implementation (Lexing.from_string search) with
+    | [{Parsetree.pstr_desc = Pstr_eval (x, _); _}] -> x
+    | _ -> failwith "Can only grep for an expression."
+    | exception _ -> failwith "Could not parse search expression."
   in
   let search_cmt cmt =
     let open Cmt_format in
-    let expr = Lazy.force search_expr in
     let res = ref [] in
     let cmt_search =
       let open Tast_iterator in
@@ -509,11 +493,9 @@ let grep_cmt search =
                 let file_color = color Green "%s" source in
                 match search_cmt cmt with
                 | exception Cannot_parse_type exn ->
-                    Format.printf "Error while analysing %s@.Cannot parse type@.%a@.Aborting@."
-                      entry Location.report_exception exn;
-                    exit 2
+                    failwith (Format.asprintf "%s: could not parse type: %a." entry Location.report_exception exn)
                 | exception exn ->
-                    Format.printf "Error while analysing %s: %a@." entry Location.report_exception exn
+                    Format.eprintf "%s: error while analysing %s: %a@." (color Yellow "Warning") entry Location.report_exception exn
                 | [] -> ()
                 | _ :: _ as locs ->
                     let src_lines = Array.of_list (read_lines source) in
@@ -542,18 +524,35 @@ let grep_cmt search =
 
 (*** Command-line parsing ***)
 
-let () =
-  let extra_includes = ref [] in
-  let search = ref None in
-  let usage_msg = "Usage: grep_cmt <options> <string>" in
-  let parsers =
-    Arg.align
-      [
-        "-I", String (fun s -> extra_includes := s :: !extra_includes), "<dir> extend load path";
-      ]
+let collect_cmi_dirs () =
+  let res = ref [] in
+  let rec walk dir =
+    Array.iter (fun entry ->
+        let entry = Filename.concat dir entry in
+        if Sys.is_directory entry then begin
+          if Filename.basename entry = "byte" && Array.exists (fun name -> Filename.check_suffix name ".cmi") (Sys.readdir entry) then
+            res := entry :: !res;
+          walk entry
+        end
+      ) (Sys.readdir dir)
   in
-  Arg.parse parsers (fun s -> search := Some s) usage_msg;
-  Load_path.init ~auto_include:Load_path.no_auto_include ~visible:(List.rev_append !extra_includes [Config.standard_library]) ~hidden:[];
+  walk (in_build_dir build_prefix);
+  List.rev !res
+
+let main () =
+  let search = ref None in
+  let usage_msg = "Usage: grep_cmt <string>" in
+  Arg.parse [] (fun s -> search := Some s) usage_msg;
+  let extra_includes = collect_cmi_dirs () in
+  Load_path.init ~auto_include:Load_path.no_auto_include ~visible:(List.append extra_includes [Config.standard_library]) ~hidden:[];
   match !search with
-  | None -> Arg.usage parsers usage_msg; exit 0
+  | None -> Arg.usage [] usage_msg; exit 0
   | Some s -> grep_cmt s
+
+let () =
+  try
+    main ()
+  with exn ->
+    let s = match exn with Failure s | Sys_error s -> s | exn -> Printexc.to_string exn in
+    Printf.eprintf "%s: %s\n%!" (color Red "Error") s;
+    exit 1
