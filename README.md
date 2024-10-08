@@ -36,7 +36,8 @@ grep_cmt PATTERN
 ```
 
 The tool assumes that it is executed within a Dune workspace, as it has a number
-of heuristics that will not work otherwise.
+of heuristics that will not work otherwise. The tool will search the files under
+the current directory subtree.
 
 You will need to run `dune build @check` in your project to ensure all `.cmt`
 files are up-to-date before using `grep_cmt`.
