@@ -3,13 +3,13 @@
 > questions about the code, feel free to contact us, but we may not be able to
 > help you.  Suggestions for improvements are also likely to be
 > ignored. Instead, we encourage you to take the approach (and the code) and
-> develop on your own into a proper, user-friendly, powerful, code refactoring tool.
+> develop it into a proper, user-friendly, powerful, code refactoring tool.
 >
 > Thanks! - LexiFi
 
-# Semantic search of OCaml values
+# Structural search of OCaml code
 
-`grep_cmt` is a command-line tool written at LexiFi to perform semantic search
+`grep_cmt` is a command-line tool written at LexiFi to perform structural search
 of OCaml code.
 
 The code is released as-is in case it is of interest to the community. The
@@ -38,7 +38,7 @@ grep_cmt PATTERN
 The tool assumes that it is executed within a Dune workspace, as it has a number
 of heuristics that will not work otherwise.
 
-You'll need to run `dune build @check` in your project to ensure all `.cmt`
+You will need to run `dune build @check` in your project to ensure all `.cmt`
 files are up-to-date before using `grep_cmt`.
 
 `PATTERN`: The pattern to search for. This should be a valid OCaml *expression*.
