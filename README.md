@@ -8,6 +8,18 @@ present code is extracted from a version used internally at LexiFi and we do not
 pretend that it is ready for public consumption, but we are making the code
 available to publicize the approach.
 
+## Compilation
+
+```sh
+dune build
+```
+
+The tool requires OCaml 5.2 (since it depends on `compiler-libs`, compilation
+aginst other versions of OCaml will require some adjustments).
+
+This produces an executable `_build/install/bin/grep_cmt.exe` which can be run
+from the command line.
+
 ## Usage
 
 ```shell
@@ -16,6 +28,9 @@ grep_cmt PATTERN
 
 The tool assumes that it is executed within a Dune workspace, as it has a number
 of heuristics that will not work otherwise.
+
+You'll need to run `dune build @check` in your project to ensure all `.cmt`
+files are up-to-date before using `grep_cmt`.
 
 `PATTERN`: The pattern to search for. This should be a valid OCaml *expression*.
 
@@ -53,18 +68,6 @@ of heuristics that will not work otherwise.
   for any prefix `P`. This rule was added so that grepping for `__.foo` will
   return every "get" and "set" of the record field `foo`, including reads in
   patterns.
-
-## Compilation
-
-```sh
-dune build
-```
-
-This produces an executable `_build/install/bin/grep_cmt.exe` which can be run
-from the command line.
-
-You'll need to run `dune build @check` in your project to ensure all `.cmt`
-files are up-to-date before using `grep_cmt`.
 
 ## Examples
 
